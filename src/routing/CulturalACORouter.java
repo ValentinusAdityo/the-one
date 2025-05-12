@@ -8,6 +8,20 @@ import routing.culturalACOUtility.SWindowCentrality;
 import routing.util.RoutingInfo;
 import util.Tuple;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import core.Connection;
+import core.DTNHost;
+import core.Message;
+import core.Settings;
+import core.SimClock;
+
 import java.util.*;
 
 public class CulturalACORouter extends ActiveRouter {
@@ -68,9 +82,9 @@ public class CulturalACORouter extends ActiveRouter {
     }
 
     // Method untuk update betweenness
-    public void updateBetweenness(DTNHost node) {
+    public void updateBetweenness(DTNHost thisHost) {
 
-        betweenness.put(node, betweenness.getOrDefault(node, 0.0) + 1.0);
+        betweenness.put(thisHost, betweenness.getOrDefault(thisHost, 0.0) + 1.0);
     }
 
     /**
@@ -83,14 +97,29 @@ public class CulturalACORouter extends ActiveRouter {
     /**
      * Mendapatkan nilai betweenness ternormalisasi (0-1)
      */
-    private double getNormalizedBetweenness(DTNHost node) {
+    private double getNormalizedBetweenness(DTNHost thisHost) {
         if (betweenness.isEmpty()) return 0;
         double max = Collections.max(betweenness.values());
-        return max > 0 ? betweenness.getOrDefault(node, 0.0) / max : 0;
+        return max > 0 ? betweenness.getOrDefault(thisHost, 0.0) / max : 0;
+    }
+
+    private double getUtility(DTNHost thisHost) {
+        double normalizedBetweenness = getNormalizedBetweenness(thisHost);
+
+        // 3. Dapatkan global centrality
+        double globalCentrality = this.centrality.getGlobalCentrality(connHistory);
+
+        // 4. Hitung weighted utility
+        double utility = beta * (normalizedBetweenness + globalCentrality);
+
+        return utility;
     }
 
     public Message messageTransferred(String id, DTNHost from) {
         Message msg = super.messageTransferred(id, from);
+        if(msg.getTo() == getHost()){
+        pheromoneTable.createPheromoneTable(msg);
+        }
 
         if(msg.getProperty("antType").equals(antTypes.BACKWARD)){
             //update betweenness
@@ -103,16 +132,45 @@ public class CulturalACORouter extends ActiveRouter {
     }
 
 
+    protected  void addACOPropety(Message m){
+        m.addProperty("antType", null);
+        m.addProperty("", centrality);
+    }
+
+
     @Override
     public void changedConnection(Connection con) {
         super.changedConnection(con);
 
         if (con.isUp()) {
-            DTNHost otherHost = con.getOtherNode(getHost());
-            updateDeliveryPredFor(otherHost);
-            updateTransitivePreds(otherHost);
+            DTNHost other = con.getOtherNode(getHost());
+            CulturalACORouter otherRouter = (CulturalACORouter) other.getRouter();
+
+            this.startTimestamps.put(other, SimClock.getTime());
+            otherRouter.startTimestamps.put(getHost(), SimClock.getTime());
         }
-        if(con)
+
+        if (!con.isUp()) {
+            DTNHost other = con.getOtherNode(getHost());
+            double time = startTimestamps.get(other);
+            double etime = SimClock.getTime();
+
+            // Find or create the connection history list
+            List<Duration> history;
+            if(!connHistory.containsKey(other))
+            {
+                history = new LinkedList<Duration>();
+                connHistory.put(other, history);
+            }
+            else
+                history = connHistory.get(other);
+
+            // add this connection to the list
+            if(etime - time > 0)
+                history.add(new Duration(time, etime));
+
+            startTimestamps.remove(other);
+        }
     }
 
     @Override
@@ -135,6 +193,7 @@ public class CulturalACORouter extends ActiveRouter {
      * their delivery probability
      * @return The return value of {@link #tryMessagesForConnected(List)}
      */
+
     private Tuple<Message, Connection> tryOtherMessages() {
         List<Tuple<Message, Connection>> messages =
                 new ArrayList<Tuple<Message, Connection>>();
@@ -155,7 +214,7 @@ public class CulturalACORouter extends ActiveRouter {
                 if (othRouter.hasMessage(m.getId())) {
                     continue; // skip messages that the other one has
                 }
-                if (othRouter.getPredFor(m.getTo()) > getPredFor(m.getTo())) {
+                if (othRouter.getUtility(m.getTo()) > getUtility(m.getTo())) {
                     // the other node has higher probability of delivery
                     messages.add(new Tuple<Message, Connection>(m,con));
                 }
@@ -183,11 +242,11 @@ public class CulturalACORouter extends ActiveRouter {
                            Tuple<Message, Connection> tuple2) {
             // delivery probability of tuple1's message with tuple1's connection
             double p1 = ((CulturalACORouter)tuple1.getValue().
-                    getOtherNode(getHost()).getRouter()).getPredFor(
+                    getOtherNode(getHost()).getRouter()).getUtility(
                     tuple1.getKey().getTo());
             // -"- tuple2...
             double p2 = ((CulturalACORouter)tuple2.getValue().
-                    getOtherNode(getHost()).getRouter()).getPredFor(
+                    getOtherNode(getHost()).getRouter()).getUtility(
                     tuple2.getKey().getTo());
 
             // bigger probability should come first
@@ -204,6 +263,7 @@ public class CulturalACORouter extends ActiveRouter {
         }
     }
 
+    /*
     @Override
     public RoutingInfo getRoutingInfo() {
         ageDeliveryPreds();
@@ -222,6 +282,7 @@ public class CulturalACORouter extends ActiveRouter {
         top.addMoreInfo(ri);
         return top;
     }
+*/
 
     @Override
     public MessageRouter replicate() {

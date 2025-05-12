@@ -151,12 +151,15 @@ public abstract class ActiveRouter extends MessageRouter {
 			// generate a response message
 			Message res = new Message(this.getHost(),m.getFrom(),
 					RESPONSE_PREFIX+m.getId(), m.getResponseSize());
+			addACOProperty(res);
 			this.createNewMessage(res);
 			this.getMessage(RESPONSE_PREFIX+m.getId()).setRequest(m);
 		}
 
 		return m;
 	}
+
+	protected void addACOProperty(Message m) { }
 
 	/**
 	 * Returns a list of connections this host currently has with other hosts.

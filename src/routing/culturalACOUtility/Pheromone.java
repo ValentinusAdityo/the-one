@@ -24,6 +24,7 @@ public class Pheromone {
 
     public void createPheromoneTable(Message m) {
         m.addProperty("destination", m.getTo());
+        m.addProperty("pathLength", m.getHopCount());
         pheromoneTable.putIfAbsent((DTNHost) m.getProperty("destination"), new HashMap<>());
     }
 
