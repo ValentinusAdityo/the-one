@@ -106,10 +106,10 @@ public class CulturalACORouter extends ActiveRouter {
     private double getUtility(DTNHost thisHost) {
         double normalizedBetweenness = getNormalizedBetweenness(thisHost);
 
-        // 3. Dapatkan global centrality
+        // Dapatkan centrality
         double globalCentrality = this.centrality.getGlobalCentrality(connHistory);
 
-        // 4. Hitung weighted utility
+        // Hitung weighted utility
         double utility = beta * (normalizedBetweenness + globalCentrality);
 
         return utility;
@@ -119,6 +119,7 @@ public class CulturalACORouter extends ActiveRouter {
         Message msg = super.messageTransferred(id, from);
         if(msg.getTo() == getHost()){
         pheromoneTable.createPheromoneTable(msg);
+        msg.updateProperty("antType", antTypes.BACKWARD);
         }
 
         if(msg.getProperty("antType").equals(antTypes.BACKWARD)){
@@ -129,12 +130,6 @@ public class CulturalACORouter extends ActiveRouter {
         }
 
         return msg;
-    }
-
-
-    protected  void addACOPropety(Message m){
-        m.addProperty("antType", null);
-        m.addProperty("", centrality);
     }
 
 
@@ -190,7 +185,7 @@ public class CulturalACORouter extends ActiveRouter {
 
     /**
      * Tries to send all other messages to all connected hosts ordered by
-     * their delivery probability
+     * their utility
      * @return The return value of {@link #tryMessagesForConnected(List)}
      */
 
@@ -199,6 +194,7 @@ public class CulturalACORouter extends ActiveRouter {
                 new ArrayList<Tuple<Message, Connection>>();
 
         Collection<Message> msgCollection = getMessageCollection();
+        Map<DTNHost, Double> candidates = new HashMap<>();
 
 		/* for all connected hosts collect all messages that have a higher
 		   probability of delivery by the other host */
@@ -214,7 +210,17 @@ public class CulturalACORouter extends ActiveRouter {
                 if (othRouter.hasMessage(m.getId())) {
                     continue; // skip messages that the other one has
                 }
-                if (othRouter.getUtility(m.getTo()) > getUtility(m.getTo())) {
+
+                double pheromone = pheromoneTable.getPheromone(other, m);
+                double utility = getUtility(other);
+                candidates.put(other, alpha*pheromone + beta*utility);
+
+                DTNHost bestForwarder = candidates.isEmpty() ? null :
+                        candidates.entrySet().stream()
+                                .max(Map.Entry.comparingByValue())
+                                .get().getKey();
+
+                if (bestForwarder.equals(other) && othRouter.getUtility(m.getTo()) > getUtility(m.getTo())) {
                     // the other node has higher probability of delivery
                     messages.add(new Tuple<Message, Connection>(m,con));
                 }

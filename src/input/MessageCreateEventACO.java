@@ -39,8 +39,7 @@ public class MessageCreateEventACO extends MessageEvent {
 
         Message m = new Message(from, to, this.id, this.size);
         m.setResponseSize(this.responseSize);
-        m.addProperty("antType", null);
-        m.addProperty("visitedNode", new Stack<>());
+        m.addProperty("antType", antTypes.FORWARD);
         from.createNewMessage(m);
     }
 

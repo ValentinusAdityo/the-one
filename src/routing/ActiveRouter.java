@@ -159,7 +159,9 @@ public abstract class ActiveRouter extends MessageRouter {
 		return m;
 	}
 
-	protected void addACOProperty(Message m) { }
+	protected void addACOProperty(Message m) {
+		//update antType jika dalam culturalACORouter tidak bisa
+	}
 
 	/**
 	 * Returns a list of connections this host currently has with other hosts.
