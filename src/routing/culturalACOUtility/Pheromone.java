@@ -24,24 +24,33 @@ public class Pheromone {
 
     public void createPheromoneTable(Message m) {
         m.addProperty("destination", m.getTo());
-        m.addProperty("pathLength", m.getHopCount());
+        m.addProperty("pathLength", (double) m.getHopCount());
         pheromoneTable.putIfAbsent((DTNHost) m.getProperty("destination"), new HashMap<>());
     }
 
     public double getPheromone(DTNHost peer, Message m) {
-        return pheromoneTable.get((DTNHost) m.getProperty("destination")).get(peer);
+        if(m.getProperty("destination")==null){
+            return 0.0;
+        }
+        return pheromoneTable.get((DTNHost) m.getProperty("destination")).getOrDefault(peer, 0.0);
     }
 
     public void updatePheromone(DTNHost thisHost, DTNHost from, Message m) {
         for(Connection con : thisHost.getConnections()) {
             DTNHost neighbor = con.getOtherNode(thisHost);
-            double pathLength = (Double) m.getProperty("pathLength");
-            // if(pheromoneTable.get((DTNHost) m.getProperty("destination")).containsValue(neighbor)) {}
-            // if(pheromoneTable.get(neighbor).containsKey(m.getProperty("destination"))) {}
-            double currentPheromone = getPheromone(neighbor, m);
-            double newPheromone = (1 - EVAPORATION_RATE)*(currentPheromone +  (1.0/pathLength));
-            if(neighbor.equals(from)) {
-                pheromoneTable.get((DTNHost) m.getProperty("destination")).put(neighbor, newPheromone);
+            if(m.getProperty("pathLength")==null){
+                return;
+            } else{
+                double pathLength = (Double) m.getProperty("pathLength");
+                //sSystem.out.println(pathLength);
+                //if(pheromoneTable.get((DTNHost) m.getProperty("destination")).containsValue(neighbor)) {}
+                //if(pheromoneTable.get(neighbor).containsKey(m.getProperty("destination"))) {}
+                double currentPheromone = getPheromone(neighbor, m);
+                double newPheromone = (1 - EVAPORATION_RATE)*(currentPheromone +  (1.0/pathLength));
+                if(neighbor.equals(from)) {
+                    pheromoneTable.get((DTNHost) m.getProperty("destination")).put(neighbor, newPheromone);
+            }
+
             }
         }
     }

@@ -4,6 +4,9 @@ Scenario.simulateConnections = true
 Scenario.updateInterval = 0.1
 # 43200s == 12h
 Scenario.endTime = 43200
+#Scenario.nrofHostGroups = 1
 
 #Group settings
 Group.router = CulturalACORouter
+#Group.movementModel = WorkingDayMovement
+Events1.class = MessageACOGenerator

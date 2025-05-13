@@ -63,9 +63,11 @@ public class CulturalACORouter extends ActiveRouter {
                     s.createIntializedObject(s.getSetting(CENTRALITY_ALG_SETTING));
         else
             this.centrality = new SWindowCentrality(s);
-        if(s.contains(PHEROMONE_SETTINGS))
+        this.pheromoneTable = new Pheromone(s);
+        /*if(s.contains(PHEROMONE_SETTINGS))
             this.pheromoneTable = (Pheromone)
-                    s.createIntializedObject(s.getSetting(PHEROMONE_SETTINGS));
+                    s.createIntializedObject(s.getSetting(PHEROMONE_SETTINGS));*/
+
     }
 
     /**
@@ -110,23 +112,27 @@ public class CulturalACORouter extends ActiveRouter {
         double globalCentrality = this.centrality.getGlobalCentrality(connHistory);
 
         // Hitung weighted utility
-        double utility = beta * (normalizedBetweenness + globalCentrality);
+        double utility = normalizedBetweenness + globalCentrality;
 
         return utility;
     }
 
     public Message messageTransferred(String id, DTNHost from) {
         Message msg = super.messageTransferred(id, from);
+
         if(msg.getTo() == getHost()){
         pheromoneTable.createPheromoneTable(msg);
         msg.updateProperty("antType", antTypes.BACKWARD);
         }
 
-        if(msg.getProperty("antType").equals(antTypes.BACKWARD)){
-            //update betweenness
-            updateBetweenness(getHost());
-            //update pheromone
-            pheromoneTable.updatePheromone(getHost(), from, msg);
+        if (msg.getProperty("antType") !=null) {
+//            System.out.println(msg.getProperty("antType"));
+            if (msg.getProperty("antType").equals(antTypes.values()[1])) {
+                updateBetweenness(getHost());
+                //update pheromone
+
+                pheromoneTable.updatePheromone(getHost(), from, msg);
+            }
         }
 
         return msg;
@@ -143,9 +149,7 @@ public class CulturalACORouter extends ActiveRouter {
 
             this.startTimestamps.put(other, SimClock.getTime());
             otherRouter.startTimestamps.put(getHost(), SimClock.getTime());
-        }
-
-        if (!con.isUp()) {
+        } else {
             DTNHost other = con.getOtherNode(getHost());
             double time = startTimestamps.get(other);
             double etime = SimClock.getTime();
@@ -166,6 +170,7 @@ public class CulturalACORouter extends ActiveRouter {
 
             startTimestamps.remove(other);
         }
+
     }
 
     @Override
@@ -178,6 +183,15 @@ public class CulturalACORouter extends ActiveRouter {
         // try messages that could be delivered to final recipient
         if (exchangeDeliverableMessages() != null) {
             return;
+        }
+
+        // Cek semua pesan dalam buffer jika berasal dari current host, maka kirim semua pesan ke tetangga
+        for (Message m : getMessageCollection()) {
+            if (getHost().equals(m.getFrom())) {
+                // Jika pesan berasal dari node ini, coba kirim ke semua koneksi
+                tryAllMessagesToAllConnections();
+                return;
+            }
         }
 
         tryOtherMessages();
@@ -215,10 +229,14 @@ public class CulturalACORouter extends ActiveRouter {
                 double utility = getUtility(other);
                 candidates.put(other, alpha*pheromone + beta*utility);
 
-                DTNHost bestForwarder = candidates.isEmpty() ? null :
+                /*DTNHost bestForwarder = candidates.isEmpty() ? null :
                         candidates.entrySet().stream()
                                 .max(Map.Entry.comparingByValue())
-                                .get().getKey();
+                                .get().getKey();*/
+
+                DTNHost bestForwarder = Collections.max(
+                        candidates.entrySet(),
+                        Map.Entry.comparingByValue()).getKey();
 
                 if (bestForwarder.equals(other) && othRouter.getUtility(m.getTo()) > getUtility(m.getTo())) {
                     // the other node has higher probability of delivery
